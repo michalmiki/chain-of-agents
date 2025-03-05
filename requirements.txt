@@ -1,0 +1,4 @@
+google-genai
+python-dotenv>=1.0.0
+nltk>=3.8.1
+tiktoken>=0.6.0
