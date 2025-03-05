@@ -22,7 +22,8 @@ class ChainOfAgents:
         self, 
         model_name: str = "gemini-2.0-flash",
         token_budget: int = 12000,
-        verbose: bool = False
+        verbose: bool = False,
+        show_worker_output: bool = False
     ):
         """
         Initialize the Chain of Agents.
@@ -31,12 +32,14 @@ class ChainOfAgents:
             model_name: The name of the model to use.
             token_budget: The token budget for each chunk.
             verbose: Whether to print verbose output.
+            show_worker_output: Whether to print worker agent outputs in verbose mode.
         """
         self.model = GeminiModel(model_name=model_name)
         self.chunker = Chunker(token_budget=token_budget)
         self.worker_agent = WorkerAgent(model=self.model)
         self.manager_agent = ManagerAgent(model=self.model)
         self.verbose = verbose
+        self.show_worker_output = show_worker_output
     
     def _log(self, message: str):
         """Print a log message if verbose mode is enabled."""
@@ -99,6 +102,10 @@ class ChainOfAgents:
             communication_units.append(cu)
             previous_cu = cu
             self._log(f"Processed chunk {i+1}/{len(chunks)}.")
+            
+            # Show worker output if enabled
+            if self.verbose and self.show_worker_output:
+                self._log(f"\n==== Worker {i+1} Output ====\n{cu}\n")
         
         # Generate final answer with manager agent
         self._log("Generating final answer with manager agent...")
@@ -128,7 +135,8 @@ class ChainOfAgents:
         text: str, 
         query: str,
         worker_task_desc: Optional[str] = None,
-        manager_task_desc: Optional[str] = None
+        manager_task_desc: Optional[str] = None,
+        show_worker_output: Optional[bool] = None
     ) -> Dict[str, Any]:
         """
         Process a query-based task (e.g., question answering).
@@ -142,19 +150,31 @@ class ChainOfAgents:
         Returns:
             A dictionary containing the final answer and metadata.
         """
-        return self.process(
+        # Use the provided show_worker_output or the default from initialization
+        if show_worker_output is not None:
+            old_show_worker_output = self.show_worker_output
+            self.show_worker_output = show_worker_output
+        
+        result = self.process(
             text=text,
             query=query,
             worker_task_desc=worker_task_desc or "Answer the question based on the provided text.",
             manager_task_desc=manager_task_desc or "Generate a comprehensive answer to the question based on the provided information.",
             is_query_based=True
         )
+        
+        # Restore the original setting if it was temporarily changed
+        if show_worker_output is not None:
+            self.show_worker_output = old_show_worker_output
+            
+        return result
     
     def summarize(
         self, 
         text: str,
         worker_task_desc: Optional[str] = None,
-        manager_task_desc: Optional[str] = None
+        manager_task_desc: Optional[str] = None,
+        show_worker_output: Optional[bool] = None
     ) -> Dict[str, Any]:
         """
         Process a non-query-based task (e.g., summarization).
@@ -167,10 +187,21 @@ class ChainOfAgents:
         Returns:
             A dictionary containing the final answer and metadata.
         """
-        return self.process(
+        # Use the provided show_worker_output or the default from initialization
+        if show_worker_output is not None:
+            old_show_worker_output = self.show_worker_output
+            self.show_worker_output = show_worker_output
+        
+        result = self.process(
             text=text,
             query=None,
             worker_task_desc=worker_task_desc or "Generate a summary of the provided text.",
             manager_task_desc=manager_task_desc or "Generate a comprehensive summary based on the provided information.",
             is_query_based=False
         )
+        
+        # Restore the original setting if it was temporarily changed
+        if show_worker_output is not None:
+            self.show_worker_output = old_show_worker_output
+            
+        return result

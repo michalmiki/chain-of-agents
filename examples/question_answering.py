@@ -32,7 +32,7 @@ def main():
     query = "What were the major milestones in AI development since the 1980s?"
     
     # Initialize Chain of Agents
-    coa = ChainOfAgents(verbose=True)
+    coa = ChainOfAgents(verbose=True, show_worker_output=True)
     
     # Process the query
     result = coa.query(long_text, query)

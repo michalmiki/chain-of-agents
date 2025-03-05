@@ -41,7 +41,7 @@ def main():
     """
     
     # Initialize Chain of Agents
-    coa = ChainOfAgents(verbose=True)
+    coa = ChainOfAgents(verbose=True, show_worker_output=True)
     
     # Generate a summary
     result = coa.summarize(long_text)
