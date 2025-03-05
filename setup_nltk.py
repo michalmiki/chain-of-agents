@@ -3,5 +3,13 @@ Download the required NLTK data.
 """
 import nltk
 
-nltk.download('punkt')
-nltk.download('punkt_tab')
+def main():
+    print("Downloading NLTK data...")
+    
+    nltk.download('punkt')
+    nltk.download('punkt_tab')
+    print("NLTK data downloaded successfully.")
+
+
+if __name__ == "__main__":
+    main()

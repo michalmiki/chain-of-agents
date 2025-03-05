@@ -38,22 +38,47 @@ chain-of-agent/
 
 ## Installation
 
+### Option 1: Install from PyPI
+
+```bash
+pip install chain-of-agents
+```
+
+### Option 2: Install from source
+
 1. Clone the repository
-2. Install the dependencies:
+2. Install the package in development mode:
+   ```bash
+   pip install -e .
    ```
-   pip install -r requirements.txt
-   ```
+
 3. Set up an `.env.prod` file with your Gemini API key:
    ```
    GEMINI_API_KEY=your-api-key-here
    ```
+
+### NLTK Setup
+
+After installation, you need to download the required NLTK data:
+
+```bash
+# If installed via PyPI
+coa-setup-nltk
+
+# Or run the setup script directly
+python setup_nltk.py
+```
 
 ## Usage
 
 ### Question Answering
 
 ```python
-from src.chain_of_agents import ChainOfAgents
+# If installed via pip
+from chain_of_agents import ChainOfAgents
+
+# If installed from source
+# from src.chain_of_agents import ChainOfAgents
 
 # Initialize Chain of Agents
 coa = ChainOfAgents(verbose=True)
@@ -71,7 +96,11 @@ print(result["answer"])
 ### Summarization
 
 ```python
-from src.chain_of_agents import ChainOfAgents
+# If installed via pip
+from chain_of_agents import ChainOfAgents
+
+# If installed from source
+# from src.chain_of_agents import ChainOfAgents
 
 # Initialize Chain of Agents
 coa = ChainOfAgents(verbose=True)
