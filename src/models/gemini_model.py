@@ -2,12 +2,12 @@
 Gemini model interface for Chain of Agents implementation.
 """
 import os
-from typing import List, Dict, Any, Optional
 from google import genai
 from dotenv import load_dotenv
+from .base_model import BaseModel
 
 
-class GeminiModel:
+class GeminiModel(BaseModel):
     """Wrapper for Google Gemini 2.0 Flash model."""
     
     def __init__(self, model_name: str = "gemini-2.0-flash"):

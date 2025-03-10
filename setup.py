@@ -30,6 +30,7 @@ setup(
         "python-dotenv>=1.0.0",
         "nltk>=3.8.1",
         "tiktoken>=0.5.0",
+        "ollama>=0.1.5",
     ],
     entry_points={
         "console_scripts": [
