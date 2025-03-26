@@ -4,10 +4,10 @@ Chain of Agents (CoA) implementation.
 from typing import Optional, List, Dict, Any, Callable
 import time
 
-from src.models.gemini_model import GeminiModel
-from src.chunking.chunker import Chunker
-from src.agents.worker_agent import WorkerAgent
-from src.agents.manager_agent import ManagerAgent
+from chain_of_agents.models.gemini_model import GeminiModel
+from chain_of_agents.chunking.chunker import Chunker
+from chain_of_agents.agents.worker_agent import WorkerAgent
+from chain_of_agents.agents.manager_agent import ManagerAgent
 
 
 class ChainOfAgents:
