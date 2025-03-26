@@ -8,7 +8,7 @@ from pathlib import Path
 # Add the parent directory to the path so we can import the package
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src import ChainOfAgents, OllamaModel
+from chain_of_agents import ChainOfAgents
 
 # Sample text for demonstration
 SAMPLE_TEXT = """
@@ -24,20 +24,17 @@ As machines become increasingly capable, tasks considered to require "intelligen
 
 def main():
     """Run the example."""
-    # Create an instance of the Ollama model
-    # You can specify a different model name if desired
-    model = OllamaModel(model_name="llama3.2")
     
     # Create an instance of the Chain of Agents
     chain = ChainOfAgents(
-        model=model,
-        num_workers=3,
-        show_worker_output=True  # Set to True to see worker agent outputs
+        model_name="deepseek-r1:1.5b",
+        show_worker_output=True,  # Set to True to see worker agent outputs
+        ollama=True
     )
     
     # Process a query using the Chain of Agents
     query = "What is the AI effect and why does it happen?"
-    result = chain.process_query(query=query, context=SAMPLE_TEXT)
+    result = chain.query(query=query, text=SAMPLE_TEXT)
     
     print("\n=== Final Answer ===")
     print(result)

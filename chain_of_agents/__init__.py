@@ -5,6 +5,7 @@ from typing import Optional, List, Dict, Any, Callable
 import time
 
 from chain_of_agents.models.gemini_model import GeminiModel
+from chain_of_agents.models.ollama_model import OllamaModel
 from chain_of_agents.chunking.chunker import Chunker
 from chain_of_agents.agents.worker_agent import WorkerAgent
 from chain_of_agents.agents.manager_agent import ManagerAgent
@@ -23,7 +24,8 @@ class ChainOfAgents:
         model_name: str = "gemini-2.0-flash",
         token_budget: int = 12000,
         verbose: bool = False,
-        show_worker_output: bool = False
+        show_worker_output: bool = False,
+        ollama: bool = False
     ):
         """
         Initialize the Chain of Agents.
@@ -34,7 +36,10 @@ class ChainOfAgents:
             verbose: Whether to print verbose output.
             show_worker_output: Whether to print worker agent outputs in verbose mode.
         """
-        self.model = GeminiModel(model_name=model_name)
+        if ollama:
+            self.model = OllamaModel(model_name=model_name)
+        else:
+            self.model = GeminiModel(model_name=model_name)
         self.chunker = Chunker(token_budget=token_budget)
         self.worker_agent = WorkerAgent(model=self.model)
         self.manager_agent = ManagerAgent(model=self.model)

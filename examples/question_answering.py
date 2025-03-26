@@ -7,7 +7,7 @@ import os
 # Add the parent directory to sys.path to import the src module
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.chain_of_agents import ChainOfAgents
+from chain_of_agents import ChainOfAgents
 
 
 def main():
