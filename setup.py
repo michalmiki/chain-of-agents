@@ -10,7 +10,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="chain-of-agents",
+    name="chain_of_agents",
     version="0.1.0",
     author="QKI Analytics",
     author_email="your.email@example.com",
@@ -18,7 +18,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/chain-of-agents",
-    packages=find_packages(include=["src", "src.*"]),
+    package_dir={"": "src"},
+    packages=find_packages(where="src"),
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
