@@ -3,8 +3,10 @@ Gemini model interface for Chain of Agents implementation.
 """
 import os
 from google import genai
+from google.genai import types # Import types for EmbedContentConfig
 from dotenv import load_dotenv
 from .base_model import BaseModel
+from typing import List
 
 
 class GeminiModel(BaseModel):
@@ -70,3 +72,37 @@ class GeminiModel(BaseModel):
             print(f"Error counting tokens: {e}")
             # Fallback: estimate tokens as words / 0.75 (rough approximation)
             return int(len(text.split()) / 0.75)
+
+    def embed_content(self, text: str) -> List[float]:
+        """
+        Generate embeddings for the given text.
+
+        Args:
+            text: The text to embed.
+
+        Returns:
+            A list of floats representing the embedding vector.
+        """
+        try:
+            # Use the specified embedding model with the correct config structure
+            result = self.client.models.embed_content(
+                model="gemini-embedding-exp-03-07",  # As requested
+                contents=text,
+                config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY") # Correct usage
+            )
+            # The result.embeddings is a list containing the embedding object(s)
+            if result.embeddings and len(result.embeddings) > 0:
+                 embedding_object = result.embeddings[0]
+                 # Check specifically for the 'values' attribute which should contain the List[float]
+                 if hasattr(embedding_object, 'values') and isinstance(embedding_object.values, list):
+                     return embedding_object.values
+                 else:
+                     # If 'values' attribute is missing or not a list, embedding failed or format is unexpected
+                     print(f"Error: Unexpected embedding object format. Expected '.values' attribute with a list. Got type: {type(embedding_object)}")
+                     return [] # Return empty list to indicate failure
+            else:
+                 print("Warning: Embedding generation returned no embeddings.")
+                 return []
+        except Exception as e:
+            print(f"Error generating embeddings: {e}")
+            return []

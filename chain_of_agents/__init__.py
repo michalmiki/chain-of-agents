@@ -25,7 +25,9 @@ class ChainOfAgents:
         token_budget: int = 12000,
         verbose: bool = False,
         show_worker_output: bool = False,
-        ollama: bool = False
+        ollama: bool = False,
+        use_embedding_filter: bool = False, # New: Flag to enable filtering
+        similarity_threshold: float = 0.7   # New: Threshold for filtering
     ):
         """
         Initialize the Chain of Agents.
@@ -35,6 +37,9 @@ class ChainOfAgents:
             token_budget: The token budget for each chunk.
             verbose: Whether to print verbose output.
             show_worker_output: Whether to print worker agent outputs in verbose mode.
+            ollama: Whether to use Ollama model instead of Gemini.
+            use_embedding_filter: Whether to filter chunks based on embedding similarity to the query.
+            similarity_threshold: The cosine similarity threshold for filtering chunks.
         """
         if ollama:
             self.model = OllamaModel(model_name=model_name)
@@ -45,7 +50,14 @@ class ChainOfAgents:
         self.manager_agent = ManagerAgent(model=self.model)
         self.verbose = verbose
         self.show_worker_output = show_worker_output
-    
+        self.use_embedding_filter = use_embedding_filter
+        self.similarity_threshold = similarity_threshold
+
+        # Check if filtering is requested but model doesn't support embedding
+        if self.use_embedding_filter and not hasattr(self.model, 'embed_content'):
+             print(f"Warning: 'use_embedding_filter' is True, but the selected model ({type(self.model).__name__}) does not implement 'embed_content'. Filtering will be disabled.")
+             self.use_embedding_filter = False
+
     def _log(self, message: str):
         """Print a log message if verbose mode is enabled."""
         if self.verbose:
@@ -80,16 +92,43 @@ class ChainOfAgents:
             else "Generate a summary of the provided text."
         )
         
-        # Create chunks
+        # Create chunks (potentially filtering them)
         self._log("Creating chunks...")
-        chunks = self.chunker.create_chunks(
-            text=text,
-            query=query or "",
-            instruction_prompt=worker_instruction,
-            token_counter=self.model.count_tokens
-        )
-        self._log(f"Created {len(chunks)} chunks.")
-        
+        if is_query_based and self.use_embedding_filter:
+            self._log(f"Filtering chunks with similarity threshold: {self.similarity_threshold}")
+            chunks = self.chunker.create_and_filter_chunks(
+                text=text,
+                query=query, # Query must exist for query-based filtering
+                instruction_prompt=worker_instruction,
+                model=self.model, # Pass the model for embedding
+                similarity_threshold=self.similarity_threshold,
+                verbose=self.verbose # Pass verbose flag for detailed logging
+            )
+            # The detailed logging is now inside create_and_filter_chunks
+            # self._log(f"Created and filtered {len(chunks)} relevant chunks.") # Redundant now
+        else:
+            if is_query_based and self.use_embedding_filter:
+                 self._log("Note: Embedding filter is enabled but task is not query-based. Skipping filtering.")
+            chunks = self.chunker.create_chunks(
+                text=text,
+                query=query or "",
+                instruction_prompt=worker_instruction,
+                token_counter=self.model.count_tokens
+            )
+            self._log(f"Created {len(chunks)} chunks (no filtering applied).")
+
+        if not chunks:
+             self._log("No chunks were created or remained after filtering. Cannot proceed.")
+             return {
+                 "answer": "Could not process the text as no relevant chunks were found or created.",
+                 "metadata": {
+                     "num_chunks": 0,
+                     "processing_time": time.time() - start_time,
+                     "communication_units": [],
+                     "final_cu": None
+                 }
+             }
+
         # Process chunks with worker agents
         self._log("Processing chunks with worker agents...")
         communication_units = []

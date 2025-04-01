@@ -28,13 +28,14 @@ setup(
     install_requires=[
         "google-generativeai>=0.3.0",
         "python-dotenv>=1.0.0",
-        "nltk>=3.8.1",
+        # nltk removed
         "tiktoken>=0.5.0",
         "ollama>=0.1.5",
+        "numpy>=1.21.0", # Added numpy for cosine similarity in chunker
     ],
     entry_points={
         "console_scripts": [
-            "coa-setup-nltk=setup_nltk:main",
+            # coa-setup-nltk removed
         ],
     },
 )
