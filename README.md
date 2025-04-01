@@ -24,7 +24,7 @@ This implementation defaults to using Google's Gemini models (e.g., `gemini-2.0-
 - Sequential processing of chunks with information passing between agents
 - Customizable task descriptions and prompts
 - Detailed metadata and logging
-- Support for Gemini and Ollama models (via `src/models`)
+- Support for Gemini and Ollama models (via `chain_of_agents/models`)
 
 ## Project Structure
 
@@ -47,10 +47,10 @@ chain-of-agent/
 │   ├── qa_long_text.py
 │   ├── question_answering.py
 │   ├── summarization.py
+│   ├── test_import.py       # Simple import test (from root)
 │   └── data/                # Example data (e.g., PDFs)
-└── src/                     # Source code
-    ├── __init__.py
-    ├── chain_of_agents.py   # Main ChainOfAgents class
+└── chain_of_agents/         # Source code for the package
+    ├── __init__.py          # Main ChainOfAgents class definition
     ├── agents/              # Worker and manager agent implementations
     │   ├── __init__.py
     │   ├── manager_agent.py
@@ -132,8 +132,6 @@ python setup_nltk.py
 
 ## Usage
 
-**Note:** The current `ChainOfAgents` class initializes `GeminiModel` by default. To use `OllamaModel`, you would need to modify the `__init__` method of `ChainOfAgents` in `src/chain_of_agents.py` to instantiate `OllamaModel` instead. Future versions might include a parameter to select the model provider directly.
-
 ### Basic Usage (with Gemini - Default)
 
 ```python
@@ -141,8 +139,8 @@ from chain_of_agents import ChainOfAgents
 
 # Initialize Chain of Agents (defaults to Gemini)
 # Specify the desired Gemini model name
-coa = ChainOfAgents(
-    model_name="gemini-2.0-flash", # Or other compatible Gemini models
+coa_gemini = ChainOfAgents(
+    model_name="gemini-1.5-flash", # Or other compatible Gemini models
     token_budget=12000,           # Default token budget per chunk
     verbose=True,
     show_worker_output=False      # Set to True to see intermediate worker outputs
@@ -152,90 +150,79 @@ coa = ChainOfAgents(
 long_text = "Your very long document text goes here..."
 query = "What are the main points discussed in the document?"
 
-result = coa.query(text=long_text, query=query)
+result_gemini = coa_gemini.query(text=long_text, query=query)
 
-print("Final Answer:")
-print(result["answer"])
+print("Final Answer (Gemini):")
+print(result_gemini["answer"])
 
-print("\nMetadata:")
-print(f"- Chunks created: {result['metadata']['num_chunks']}")
-print(f"- Processing time: {result['metadata']['processing_time']:.2f} seconds")
+print("\nMetadata (Gemini):")
+print(f"- Chunks created: {result_gemini['metadata']['num_chunks']}")
+print(f"- Processing time: {result_gemini['metadata']['processing_time']:.2f} seconds")
 ```
 
-### Question Answering (Gemini Example)
+### Basic Usage (with Ollama)
+
+To use a model served by Ollama, simply set `ollama=True` and provide the Ollama model name.
 
 ```python
 from chain_of_agents import ChainOfAgents
 
-# Initialize (using Gemini by default)
-coa = ChainOfAgents(model_name="gemini-2.0-flash", verbose=True)
+# Initialize Chain of Agents for Ollama
+# Ensure your Ollama server is running and the model is available
+coa_ollama = ChainOfAgents(
+    model_name="llama3",      # Specify the Ollama model name
+    ollama=True,              # Set this flag to True
+    token_budget=4000,        # Adjust token budget if needed for the model
+    verbose=True,
+    show_worker_output=False
+)
+
+# Example: Process a document with a query
+long_text = "Your very long document text goes here..."
+query = "What are the main points discussed in the document?"
+
+result_ollama = coa_ollama.query(text=long_text, query=query)
+
+print("Final Answer (Ollama):")
+print(result_ollama["answer"])
+
+print("\nMetadata (Ollama):")
+print(f"- Chunks created: {result_ollama['metadata']['num_chunks']}")
+print(f"- Processing time: {result_ollama['metadata']['processing_time']:.2f} seconds")
+```
+
+### Question Answering
+
+Both Gemini and Ollama instances can be used for question answering via the `.query()` method.
+
+```python
+# Using the initialized coa_gemini or coa_ollama from above...
 
 long_text = "..." # Your long text
 question = "..." # Your question
 
-# Process the query
-result = coa.query(text=long_text, query=question)
+# Process the query (example with Gemini instance)
+result = coa_gemini.query(text=long_text, query=question)
 
 # Get the answer
 print(result["answer"])
 ```
 
-### Summarization (Gemini Example)
+### Summarization
+
+Both Gemini and Ollama instances can be used for summarization via the `.summarize()` method.
 
 ```python
-from chain_of_agents import ChainOfAgents
-
-# Initialize (using Gemini by default)
-coa = ChainOfAgents(model_name="gemini-2.0-flash", verbose=True)
+# Using the initialized coa_gemini or coa_ollama from above...
 
 long_text = "..." # Your long text
 
-# Generate a summary
-result = coa.summarize(text=long_text)
+# Generate a summary (example with Ollama instance)
+result = coa_ollama.summarize(text=long_text)
 
 # Get the summary
 print(result["answer"])
 ```
-
-### Using Ollama Models
-
-While the main `ChainOfAgents` class defaults to using Gemini models, you can create a subclass to use Ollama:
-
-```python
-from src.chain_of_agents import ChainOfAgents
-from src.models.ollama_model import OllamaModel
-
-class OllamaChainOfAgents(ChainOfAgents):
-    def __init__(
-        self,
-        model_name: str = "llama3",  # Default Ollama model
-        token_budget: int = 4000,    # Lower default for Ollama's context window
-        verbose: bool = False,
-        show_worker_output: bool = False
-    ):
-        self.model = OllamaModel(model_name=model_name)
-        self.chunker = Chunker(token_budget=token_budget)
-        self.worker_agent = WorkerAgent(model=self.model)
-        self.manager_agent = ManagerAgent(model=self.model)
-        self.verbose = verbose
-        self.show_worker_output = show_worker_output
-
-# Usage example:
-coa = OllamaChainOfAgents(
-    model_name="llama3",  # Or other Ollama model
-    token_budget=4000,
-    verbose=True
-)
-
-result = coa.query(
-    text="Your long text here...",
-    query="Your question here?"
-)
-
-print(result["answer"])
-```
-
-This approach avoids modifying the original source code while providing Ollama support.
 
 ## Examples
 
@@ -249,9 +236,9 @@ python examples/summarization.py
 ## Key Considerations
 
 - **Model Selection**:
-    - The package defaults to using Gemini models (`GeminiModel`). You can specify the model name (e.g., `"gemini-1.5-flash"`) during `ChainOfAgents` initialization. Ensure your `GEMINI_API_KEY` is set.
-    - An `OllamaModel` class is included, allowing use with local models via Ollama. However, the main `ChainOfAgents` class currently needs modification in its `__init__` method to instantiate `OllamaModel` instead of `GeminiModel`.
-- **Token Budget**: The `token_budget` parameter (default 12,000) determines the approximate size of text chunks processed by worker agents. This budget accounts for the chunk text, query, instructions, and estimated previous summary size. Adjust based on the context window of your chosen model and task complexity.
+    - **Gemini (Default):** The package defaults to using Gemini models (`GeminiModel`). Specify the model name (e.g., `"gemini-1.5-flash"`) during `ChainOfAgents` initialization. Ensure your `GEMINI_API_KEY` environment variable is set.
+    - **Ollama:** To use models served by Ollama, initialize `ChainOfAgents` with the `ollama=True` flag and provide the desired Ollama `model_name` (e.g., `"llama3"`). Ensure your Ollama server is running and accessible (check `OLLAMA_HOST` if needed).
+- **Token Budget**: The `token_budget` parameter determines the approximate size of text chunks processed by worker agents. The default is 12,000 for Gemini. You might want to adjust this (e.g., lower it to 4000) when using Ollama models, depending on their context window size and the task complexity. This budget accounts for the chunk text, query, instructions, and estimated previous summary size.
 - **Performance**: Effectiveness depends on the worker agents' ability to create useful summaries and the manager agent's synthesis capability.
 - **Latency**: Sequential LLM calls increase overall processing time compared to single-call methods.
 
