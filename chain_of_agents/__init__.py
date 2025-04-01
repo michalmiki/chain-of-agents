@@ -107,14 +107,15 @@ class ChainOfAgents:
             # The detailed logging is now inside create_and_filter_chunks
             # self._log(f"Created and filtered {len(chunks)} relevant chunks.") # Redundant now
         else:
-            if is_query_based and self.use_embedding_filter:
-                 self._log("Note: Embedding filter is enabled but task is not query-based. Skipping filtering.")
             chunks = self.chunker.create_chunks(
                 text=text,
                 query=query or "",
                 instruction_prompt=worker_instruction,
                 token_counter=self.model.count_tokens
             )
+        
+        if self.use_embedding_filter and not is_query_based:
+            self._log("Note: Embedding filter is enabled but task is not query-based. Skipping filtering.")
             self._log(f"Created {len(chunks)} chunks (no filtering applied).")
 
         if not chunks:
