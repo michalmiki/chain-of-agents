@@ -118,6 +118,11 @@ The core dependencies are listed in `setup.py` and include:
 pip install markitdown
 ```
 
+If you want to run the PDF question answering example:
+```bash
+python examples/qa_long_text.py
+```
+
 ### NLTK Setup
 
 After installation, you need to download the required NLTK data:
@@ -163,22 +168,32 @@ print(f"- Processing time: {result_gemini['metadata']['processing_time']:.2f} se
 ### Basic Usage (with Ollama)
 
 To use a model served by Ollama, simply set `ollama=True` and provide the Ollama model name.
+You can refer to the example script [`examples/ollama_question_answering.py`](examples/ollama_question_answering.py) for a full working example.
 
 ```python
 from chain_of_agents import ChainOfAgents
 
 # Initialize Chain of Agents for Ollama
 # Ensure your Ollama server is running and the model is available
-coa_ollama = ChainOfAgents(
-    model_name="llama3",      # Specify the Ollama model name
-    ollama=True,              # Set this flag to True
-    token_budget=4000,        # Adjust token budget if needed for the model
-    verbose=True,
-    show_worker_output=False
+chain = ChainOfAgents(
+    model_name="deepseek-r1:1.5b",  # Or another available Ollama model
+    ollama=True,                    # Set this flag to True
+    show_worker_output=True         # Set to True to see worker agent outputs
 )
 
 # Example: Process a document with a query
 long_text = "Your very long document text goes here..."
+query = "What is the AI effect and why does it happen?"
+
+result = chain.query(query=query, text=long_text)
+print("Final Answer:")
+print(result)
+```
+
+You can run the example script directly:
+```bash
+python examples/ollama_question_answering.py
+```
 query = "What are the main points discussed in the document?"
 
 result_ollama = coa_ollama.query(text=long_text, query=query)
