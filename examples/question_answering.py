@@ -8,6 +8,8 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from chain_of_agents import ChainOfAgents
+from chain_of_agents.providers.embedding.openai_embedding import OpenAIEmbeddingProvider
+# from chain_of_agents.providers.llm.openai_llm import OpenAILLMProvider  # Uncomment if implemented
 
 
 def main():
@@ -32,7 +34,9 @@ def main():
     query = "What were the major milestones in AI development since the 1980s?"
     
     # Initialize Chain of Agents
-    coa = ChainOfAgents(verbose=True, show_worker_output=True)
+    coa = ChainOfAgents(
+        # llm_provider=OpenAILLMProvider(model_name=args.openai_llm),  # Uncomment if implemented
+        embedding_provider=OpenAIEmbeddingProvider(model_name=args.embedding_model),verbose=True, show_worker_output=True)
     
     # Process the query
     result = coa.query(long_text, query)

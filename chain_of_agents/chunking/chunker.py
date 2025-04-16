@@ -5,7 +5,8 @@ Splits text based on character length.
 import re
 import numpy as np
 from typing import List, Tuple, Optional
-from ..models.base_model import BaseModel # Import BaseModel for type hinting
+from ..providers.base_embedding_provider import BaseEmbeddingProvider
+from ..providers.base_llm_provider import BaseLLMProvider
 
 
 class Chunker:
@@ -156,9 +157,10 @@ class Chunker:
         text: str,
         query: str,
         instruction_prompt: str,
-        model: BaseModel, # Pass the model for embedding
-        similarity_threshold: float = 0.7, # Default threshold
-        verbose: bool = False # Add verbose flag
+        embedding_provider: BaseEmbeddingProvider,
+        llm_provider: BaseLLMProvider = None,
+        similarity_threshold: float = 0.7,
+        verbose: bool = False
     ) -> List[str]:
         """
         Create chunks and filter them based on embedding similarity to the query.
@@ -175,11 +177,12 @@ class Chunker:
             A list of relevant text chunks, preserving original order.
         """
         # 1. Create initial chunks based on token budget
+        token_counter = llm_provider.count_tokens if llm_provider else embedding_provider.count_tokens
         initial_chunks = self.create_chunks(
             text=text,
             query=query,
             instruction_prompt=instruction_prompt,
-            token_counter=model.count_tokens # Use model's token counter
+            token_counter=token_counter
         )
 
         if not initial_chunks:
@@ -187,10 +190,10 @@ class Chunker:
 
         # 2. Embed the query
         try:
-            query_embedding = model.embed_content(query)
+            query_embedding = embedding_provider.embed(query)
             if not query_embedding:
-                 print("Warning: Failed to embed query. Skipping filtering.")
-                 return initial_chunks
+                print("Warning: Failed to embed query. Skipping filtering.")
+                return initial_chunks
         except Exception as e:
             print(f"Error embedding query: {e}. Skipping filtering.")
             return initial_chunks
@@ -201,7 +204,7 @@ class Chunker:
         if verbose: print("\n--- Chunk Filtering Details ---")
         for i, chunk in enumerate(initial_chunks):
             try:
-                chunk_embedding = model.embed_content(chunk)
+                chunk_embedding = embedding_provider.embed(chunk)
                 if not chunk_embedding:
                     print(f"Warning: Failed to embed chunk. Skipping this chunk:\n{chunk[:100]}...")
                     continue # Skip chunk if embedding fails

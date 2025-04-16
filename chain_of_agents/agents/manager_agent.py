@@ -9,14 +9,13 @@ class ManagerAgent:
     Manager agent that processes the final communication unit and generates the answer.
     """
     
-    def __init__(self, model):
+    def __init__(self, llm_provider):
         """
         Initialize the manager agent.
-        
         Args:
-            model: The LLM model to use for processing.
+            llm_provider: An object implementing BaseLLMProvider for text generation.
         """
-        self.model = model
+        self.llm_provider = llm_provider
     
     def _create_query_based_prompt(
         self, 
@@ -108,5 +107,5 @@ Summary:
             )
         
         # Generate answer
-        answer = self.model.generate(prompt)
+        answer = self.llm_provider.generate(prompt)
         return answer

@@ -9,14 +9,13 @@ class WorkerAgent:
     Worker agent that processes chunks of text and generates communication units.
     """
     
-    def __init__(self, model):
+    def __init__(self, llm_provider):
         """
         Initialize the worker agent.
-        
         Args:
-            model: The LLM model to use for processing.
+            llm_provider: An object implementing BaseLLMProvider for text generation.
         """
-        self.model = model
+        self.llm_provider = llm_provider
     
     def _create_query_based_prompt(
         self, 
@@ -123,5 +122,5 @@ Thus, your generated summary should be relatively long and include all important
             )
         
         # Generate communication unit
-        communication_unit = self.model.generate(prompt)
+        communication_unit = self.llm_provider.generate(prompt)
         return communication_unit

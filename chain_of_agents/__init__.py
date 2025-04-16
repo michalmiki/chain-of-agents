@@ -14,49 +14,61 @@ from chain_of_agents.agents.manager_agent import ManagerAgent
 class ChainOfAgents:
     """
     Chain of Agents (CoA) implementation for processing long contexts.
-    
     This class coordinates the chunking of input text, the sequential processing
     by worker agents, and the final answer generation by the manager agent.
     """
     
     def __init__(
-        self, 
-        model_name: str = "gemini-2.0-flash",
+        self,
+        llm_provider=None,
+        embedding_provider=None,
         token_budget: int = 12000,
         verbose: bool = False,
         show_worker_output: bool = False,
+        use_embedding_filter: bool = False,
+        similarity_threshold: float = 0.7,
+        # The following args are DEPRECATED and only here for backward compatibility:
+        model_name: str = None,
         ollama: bool = False,
-        use_embedding_filter: bool = False, # New: Flag to enable filtering
-        similarity_threshold: float = 0.7   # New: Threshold for filtering
+        embedding_model: 'BaseModel' = None
     ):
         """
-        Initialize the Chain of Agents.
-        
+        Initialize the Chain of Agents with explicit LLM and embedding providers.
         Args:
-            model_name: The name of the model to use.
+            llm_provider: Object implementing BaseLLMProvider for generation.
+            embedding_provider: Object implementing BaseEmbeddingProvider for embeddings.
             token_budget: The token budget for each chunk.
             verbose: Whether to print verbose output.
             show_worker_output: Whether to print worker agent outputs in verbose mode.
-            ollama: Whether to use Ollama model instead of Gemini.
             use_embedding_filter: Whether to filter chunks based on embedding similarity to the query.
             similarity_threshold: The cosine similarity threshold for filtering chunks.
+            model_name, ollama, embedding_model: DEPRECATED. Use explicit providers instead.
         """
-        if ollama:
-            self.model = OllamaModel(model_name=model_name)
-        else:
-            self.model = GeminiModel(model_name=model_name)
+        # Backward compatibility logic
+        if model_name or ollama or embedding_model:
+            print("[DEPRECATION WARNING] Please use 'llm_provider' and 'embedding_provider' instead of 'model_name', 'ollama', or 'embedding_model'.")
+            if ollama:
+                from chain_of_agents.models.ollama_model import OllamaModel
+                llm_provider = OllamaModel(model_name=model_name or "llama3.2")
+            else:
+                from chain_of_agents.models.gemini_model import GeminiModel
+                llm_provider = GeminiModel(model_name=model_name or "gemini-2.0-flash")
+            if embedding_model is not None:
+                embedding_provider = embedding_model
+        self.llm_provider = llm_provider
+        self.embedding_provider = embedding_provider
         self.chunker = Chunker(token_budget=token_budget)
-        self.worker_agent = WorkerAgent(model=self.model)
-        self.manager_agent = ManagerAgent(model=self.model)
+        self.worker_agent = WorkerAgent(model=self.llm_provider)
+        self.manager_agent = ManagerAgent(model=self.llm_provider)
         self.verbose = verbose
         self.show_worker_output = show_worker_output
         self.use_embedding_filter = use_embedding_filter
         self.similarity_threshold = similarity_threshold
-
-        # Check if filtering is requested but model doesn't support embedding
-        if self.use_embedding_filter and not hasattr(self.model, 'embed_content'):
-             print(f"Warning: 'use_embedding_filter' is True, but the selected model ({type(self.model).__name__}) does not implement 'embed_content'. Filtering will be disabled.")
-             self.use_embedding_filter = False
+        # Check if filtering is requested but provider doesn't support embedding
+        provider_for_embedding = self.embedding_provider or self.llm_provider
+        if self.use_embedding_filter and not hasattr(provider_for_embedding, 'embed'):
+            print(f"Warning: 'use_embedding_filter' is True, but the selected embedding provider ({type(provider_for_embedding).__name__}) does not implement 'embed'. Filtering will be disabled.")
+            self.use_embedding_filter = False
 
     def _log(self, message: str):
         """Print a log message if verbose mode is enabled."""
@@ -94,24 +106,23 @@ class ChainOfAgents:
         
         # Create chunks (potentially filtering them)
         self._log("Creating chunks...")
+        provider_for_embedding = self.embedding_provider or self.llm_provider
         if is_query_based and self.use_embedding_filter:
             self._log(f"Filtering chunks with similarity threshold: {self.similarity_threshold}")
             chunks = self.chunker.create_and_filter_chunks(
                 text=text,
                 query=query, # Query must exist for query-based filtering
                 instruction_prompt=worker_instruction,
-                model=self.model, # Pass the model for embedding
+                model=provider_for_embedding, # Use embedding provider if provided
                 similarity_threshold=self.similarity_threshold,
                 verbose=self.verbose # Pass verbose flag for detailed logging
             )
-            # The detailed logging is now inside create_and_filter_chunks
-            # self._log(f"Created and filtered {len(chunks)} relevant chunks.") # Redundant now
         else:
             chunks = self.chunker.create_chunks(
                 text=text,
                 query=query or "",
                 instruction_prompt=worker_instruction,
-                token_counter=self.model.count_tokens
+                token_counter=self.llm_provider.count_tokens
             )
         
         if self.use_embedding_filter and not is_query_based:

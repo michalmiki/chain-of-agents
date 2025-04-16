@@ -9,6 +9,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from chain_of_agents import ChainOfAgents
+from chain_of_agents.providers.llm.ollama_llm import OllamaLLMProvider
+from chain_of_agents.providers.embedding.openai_embedding import OpenAIEmbeddingProvider
 
 # Sample text for demonstration
 SAMPLE_TEXT = """
@@ -25,9 +27,15 @@ As machines become increasingly capable, tasks considered to require "intelligen
 def main():
     """Run the example."""
     
+    parser = argparse.ArgumentParser(description='Chain of Agents Example')
+    parser.add_argument('--ollama_model', type=str, default='deepseek-r1:1.5b', help='Ollama model name')
+    parser.add_argument('--embedding_model', type=str, default='text-embedding-ada-002', help='OpenAI embedding model name')
+    args = parser.parse_args()
+    
     # Create an instance of the Chain of Agents
-    chain = ChainOfAgents(
-        model_name="deepseek-r1:1.5b",
+    coa = ChainOfAgents(
+        llm_provider=OllamaLLMProvider(model_name=args.ollama_model),
+        embedding_provider=OpenAIEmbeddingProvider(model_name=args.embedding_model),
         show_worker_output=True,  # Set to True to see worker agent outputs
         ollama=True
     )
