@@ -87,12 +87,13 @@ if __name__ == "__main__":
     parser.add_argument(
         '--ollama-model',
         type=str,
-        default="llama2",
+        default="gemma3:12b",
         help='Name of the Ollama model to use for generation.'
     )
     parser.add_argument(
         '--use-local-embeddings',
         action='store_true',
+        default=False,
         help='Use a local Sentence Transformers model for embeddings instead of the default.'
     )
     parser.add_argument(
