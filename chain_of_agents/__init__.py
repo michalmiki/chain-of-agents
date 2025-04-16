@@ -4,8 +4,6 @@ Chain of Agents (CoA) implementation.
 from typing import Optional, List, Dict, Any, Callable
 import time
 
-from chain_of_agents.models.gemini_model import GeminiModel
-from chain_of_agents.models.ollama_model import OllamaModel
 from chain_of_agents.chunking.chunker import Chunker
 from chain_of_agents.agents.worker_agent import WorkerAgent
 from chain_of_agents.agents.manager_agent import ManagerAgent
@@ -44,17 +42,9 @@ class ChainOfAgents:
             similarity_threshold: The cosine similarity threshold for filtering chunks.
             model_name, ollama, embedding_model: DEPRECATED. Use explicit providers instead.
         """
-        # Backward compatibility logic
+        # DEPRECATED: model_name, ollama, embedding_model are no longer supported.
         if model_name or ollama or embedding_model:
-            print("[DEPRECATION WARNING] Please use 'llm_provider' and 'embedding_provider' instead of 'model_name', 'ollama', or 'embedding_model'.")
-            if ollama:
-                from chain_of_agents.models.ollama_model import OllamaModel
-                llm_provider = OllamaModel(model_name=model_name or "llama3.2")
-            else:
-                from chain_of_agents.models.gemini_model import GeminiModel
-                llm_provider = GeminiModel(model_name=model_name or "gemini-2.0-flash")
-            if embedding_model is not None:
-                embedding_provider = embedding_model
+            raise ValueError("[DEPRECATION ERROR] 'model_name', 'ollama', and 'embedding_model' are no longer supported. Please use 'llm_provider' and 'embedding_provider' arguments with provider objects instead.")
         self.llm_provider = llm_provider
         self.embedding_provider = embedding_provider
         self.chunker = Chunker(token_budget=token_budget)

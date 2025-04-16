@@ -9,13 +9,19 @@ class ManagerAgent:
     Manager agent that processes the final communication unit and generates the answer.
     """
     
-    def __init__(self, llm_provider):
+    def __init__(self, llm_provider=None, model=None):
         """
         Initialize the manager agent.
         Args:
             llm_provider: An object implementing BaseLLMProvider for text generation.
+            model: (DEPRECATED) legacy argument for backward compatibility.
         """
+        if model is not None:
+            print("[DEPRECATION WARNING] Use 'llm_provider' instead of 'model' for ManagerAgent.")
+            llm_provider = model
         self.llm_provider = llm_provider
+        if not hasattr(self.llm_provider, 'generate') or not callable(self.llm_provider.generate):
+            raise TypeError(f"llm_provider must implement a callable 'generate' method. Got: {type(self.llm_provider).__name__}")
     
     def _create_query_based_prompt(
         self, 
