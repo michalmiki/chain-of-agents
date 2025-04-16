@@ -34,8 +34,8 @@ def main():
     
     # Create an instance of the Chain of Agents
     coa = ChainOfAgents(
-        llm_provider=OllamaLLMProvider(model_name=args.ollama_model),
-        embedding_provider=OpenAIEmbeddingProvider(model_name=args.embedding_model),
+        llm_provider=OllamaLLMProvider(model_name=args.ollama_model),  # Ollama does not require an API key
+        embedding_provider=OpenAIEmbeddingProvider(model_name=args.embedding_model, api_key=args.openai_api_key),
         show_worker_output=True,  # Set to True to see worker agent outputs
         ollama=True
     )

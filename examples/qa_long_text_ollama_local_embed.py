@@ -29,6 +29,9 @@ def main(args):
     if args.use_local_embeddings:
         print(f"Using local SentenceTransformerEmbeddingProvider for embeddings: {args.embedding_model}")
         embedding_provider = SentenceTransformerEmbeddingProvider(model_name=args.embedding_model)
+# For Gemini/OpenAI, you can pass api_key=... to the provider, e.g.:
+# embedding_provider = GeminiEmbeddingProvider(model_name=args.embedding_model, api_key=args.gemini_api_key)
+# embedding_provider = OpenAIEmbeddingProvider(model_name=args.embedding_model, api_key=args.openai_api_key)
 
     print(f"Initializing ChainOfAgents with OllamaLLMProvider (model: {args.ollama_model})...")
     print(f"  Use Embedding Filter: {args.use_filter}")
@@ -37,6 +40,9 @@ def main(args):
 
     coa = ChainOfAgents(
         llm_provider=OllamaLLMProvider(model_name=args.ollama_model),
+# For Gemini/OpenAI, you can pass api_key=... to the provider, e.g.:
+# llm_provider = GeminiLLMProvider(model_name=args.gemini_llm, api_key=args.gemini_api_key)
+# llm_provider = OpenAILLMProvider(model_name=args.openai_llm, api_key=args.openai_api_key)
         embedding_provider=embedding_provider,
         verbose=True,
         token_budget=10000,

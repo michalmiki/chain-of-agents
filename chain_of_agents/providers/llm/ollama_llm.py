@@ -12,13 +12,16 @@ except ImportError:
     OLLAMA_AVAILABLE = False
 
 class OllamaLLMProvider(BaseLLMProvider):
-    def __init__(self, model_name: str = "llama3.2"):
+    def __init__(self, model_name: str = "deepseek-llm:7b-instruct", base_url: str = "http://localhost:11434"):
+        """
+        Ollama LLM provider. Pass model_name and base_url directly. No API key required.
+        """
         if not OLLAMA_AVAILABLE:
             raise ImportError(
                 "Ollama package is not installed. Please install it with 'pip install ollama'"
             )
-        load_dotenv('/Users/mikemik/Documents/Projects/Python/qki_analytics/chain-of-agent/.env.prod')
         self.model_name = model_name
+        self.base_url = base_url
 
     def generate(self, prompt: str, temperature: float = 0.7, max_tokens: int = 1024) -> str:
         try:

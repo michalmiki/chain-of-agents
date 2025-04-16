@@ -35,8 +35,9 @@ def main():
     
     # Initialize Chain of Agents
     coa = ChainOfAgents(
-        # llm_provider=OpenAILLMProvider(model_name=args.openai_llm),  # Uncomment if implemented
-        embedding_provider=OpenAIEmbeddingProvider(model_name=args.embedding_model),verbose=True, show_worker_output=True)
+        # llm_provider=OpenAILLMProvider(model_name=args.openai_llm, api_key=args.openai_api_key),  # Uncomment if implemented
+        embedding_provider=OpenAIEmbeddingProvider(model_name=args.embedding_model, api_key=args.openai_api_key),verbose=True, show_worker_output=True)
+    # You can now pass --openai-api-key to override env var
     
     # Process the query
     result = coa.query(long_text, query)
@@ -50,4 +51,9 @@ def main():
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Run Chain of Agents QA with OpenAI embedding provider.")
+    parser.add_argument('--embedding-model', type=str, default='text-embedding-ada-002', help='OpenAI embedding model name')
+    parser.add_argument('--openai-api-key', type=str, default=None, help='OpenAI API key (optional, falls back to OPENAI_API_KEY env var)')
+    args = parser.parse_args()
     main()

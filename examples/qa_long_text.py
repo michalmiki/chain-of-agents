@@ -34,14 +34,14 @@ def main(args):
         print(f"  Similarity Threshold: {args.threshold}")
 
     coa = ChainOfAgents(
-        llm_provider=GeminiLLMProvider(model_name=args.gemini_llm),
-        embedding_provider=GeminiEmbeddingProvider(model_name=args.embedding_model),
+        llm_provider=GeminiLLMProvider(model_name=args.gemini_llm, api_key=args.gemini_api_key),
+        embedding_provider=GeminiEmbeddingProvider(model_name=args.embedding_model, api_key=args.gemini_api_key),
         verbose=True,
         token_budget= 10000,
         show_worker_output=True,
         use_embedding_filter=args.use_filter,
         similarity_threshold=args.threshold
-    )
+    )  # You can now pass --gemini-api-key to override env var
 
     # Process the query
     result = coa.query(long_text, query)
@@ -60,6 +60,9 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Chain of Agents QA on a long text with optional embedding filtering.")
+    parser.add_argument('--gemini-llm', type=str, default='gemini-pro', help='Gemini LLM model name')
+    parser.add_argument('--embedding-model', type=str, default='gemini-embedding-exp-03-07', help='Gemini embedding model name')
+    parser.add_argument('--gemini-api-key', type=str, default=None, help='Gemini API key (optional, falls back to GEMINI_API_KEY env var)')
     parser.add_argument(
         '--use-filter',
         action='store_true',

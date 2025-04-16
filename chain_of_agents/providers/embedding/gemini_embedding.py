@@ -9,11 +9,13 @@ import os
 from typing import List
 
 class GeminiEmbeddingProvider(BaseEmbeddingProvider):
-    def __init__(self, model_name: str = "gemini-embedding-exp-03-07"):
-        load_dotenv('/Users/mikemik/Documents/Projects/Python/qki_analytics/chain-of-agent/.env.prod')
-        api_key = os.getenv("GEMINI_API_KEY")
+    def __init__(self, model_name: str = "gemini-embedding-exp-03-07", api_key: str = None):
+        """
+        Gemini embedding provider. Pass api_key directly or set GEMINI_API_KEY in environment.
+        """
+        api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
+            raise ValueError("GEMINI_API_KEY not found in environment variables or constructor argument")
         self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
 
