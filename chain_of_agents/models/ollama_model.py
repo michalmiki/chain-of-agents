@@ -62,8 +62,6 @@ class OllamaModel(BaseModel):
             
             # Call the Ollama API
             kwargs = {'model': self.model_name, 'messages': messages, 'options': options}
-            if self.api_base:
-                kwargs['api_base'] = self.api_base
                 
             response: ChatResponse = chat(**kwargs)
             
