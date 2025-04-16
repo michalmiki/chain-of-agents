@@ -32,9 +32,6 @@ class OllamaModel(BaseModel):
         
         # Set the model name
         self.model_name = model_name
-        
-        # Set the API endpoint if provided in environment variables
-        self.api_base = os.getenv("OLLAMA_API_BASE", None)
     
     def generate(self, prompt: str, temperature: float = 0.7, max_tokens: int = 1024) -> str:
         """
