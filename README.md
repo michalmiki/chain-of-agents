@@ -15,7 +15,7 @@ Chain of Agents is a novel framework that enables multiple LLMs to collaborate s
 1. **Worker Agents**: A chain of LLMs that process chunks of text sequentially, with each agent building upon the previous agent's summary.
 2. **Manager Agent**: An LLM that synthesizes the final output from the accumulated information passed through the worker chain.
 
-This implementation defaults to using Google's Gemini models (e.g., `gemini-2.0-flash`) but includes support for Ollama models as well (requires minor code adjustment in the current version).
+This implementation uses explicit LLM and embedding providers. Built-in LLM providers include Gemini, OpenAI, and Ollama; embedding providers include OpenAI, SentenceTransformers, and Gemini.
 
 ## Features
 
@@ -24,7 +24,8 @@ This implementation defaults to using Google's Gemini models (e.g., `gemini-2.0-
 - Sequential processing of chunks with information passing between agents
 - Customizable task descriptions and prompts
 - Detailed metadata and logging
-- Support for Gemini and Ollama models (via `chain_of_agents/models`)
+- Support for pluggable LLM providers (e.g., Gemini, OpenAI, Ollama) via the BaseLLMProvider interface
+- Support for pluggable embedding providers (e.g., OpenAI, SentenceTransformers, Gemini) via the BaseEmbeddingProvider interface
 
 ## Project Structure
 
@@ -58,6 +59,20 @@ chain-of-agent/
     ├── chunking/            # Text chunking logic
     │   ├── __init__.py
     │   └── chunker.py
+    ├── providers/           # LLM and embedding providers
+    │   ├── __init__.py
+    │   ├── llm/
+    │   │   ├── __init__.py
+    │   │   ├── base_llm.py
+    │   │   ├── gemini_llm.py
+    │   │   ├── openai_llm.py
+    │   │   └── ollama_llm.py
+    │   └── embedding/
+    │       ├── __init__.py
+    │       ├── base_embedding.py
+    │       ├── openai_embedding.py
+    │       ├── sentence_transformers_embedding.py
+    │       └── gemini_embedding.py
     └── models/              # LLM model interfaces
         ├── __init__.py
         ├── base_model.py
@@ -112,6 +127,7 @@ The core dependencies are listed in `setup.py` and include:
 - `nltk`
 - `tiktoken`
 - `ollama`
+- `sentence-transformers`
 
 **Optional:** For processing specific file types like PDFs (as shown in `examples/qa_long_text.py`), you might need additional libraries like `markitdown`:
 ```bash
@@ -137,73 +153,37 @@ python setup_nltk.py
 
 ## Usage
 
-### Basic Usage (with Gemini - Default)
+### Basic Usage
 
 ```python
 from chain_of_agents import ChainOfAgents
+from chain_of_agents.providers.llm.openai_llm import OpenAILLMProvider
+from chain_of_agents.providers.embedding.openai_embedding import OpenAIEmbeddingProvider
 
-# Initialize Chain of Agents (defaults to Gemini)
-# Specify the desired Gemini model name
-coa_gemini = ChainOfAgents(
-    model_name="gemini-1.5-flash", # Or other compatible Gemini models
-    token_budget=12000,           # Default token budget per chunk
+# Initialize providers
+llm_provider = OpenAILLMProvider(model_name="gpt-3.5-turbo")
+embedding_provider = OpenAIEmbeddingProvider(model_name="text-embedding-ada-002")
+
+# Initialize Chain of Agents
+coa = ChainOfAgents(
+    llm_provider=llm_provider,
+    embedding_provider=embedding_provider,
+    token_budget=12000,
     verbose=True,
-    show_worker_output=False      # Set to True to see intermediate worker outputs
+    show_worker_output=False,      # Set to True to see intermediate worker outputs
+    use_embedding_filter=True,      # Set to True to filter chunks by embedding similarity
+    similarity_threshold=0.75       # Cosine similarity threshold for filtering
 )
 
-# Example: Process a document with a query
+# Query-based task (Question Answering)
 long_text = "Your very long document text goes here..."
 query = "What are the main points discussed in the document?"
+result = coa.query(text=long_text, query=query)
+print(result["answer"])
 
-result_gemini = coa_gemini.query(text=long_text, query=query)
-
-print("Final Answer (Gemini):")
-print(result_gemini["answer"])
-
-print("\nMetadata (Gemini):")
-print(f"- Chunks created: {result_gemini['metadata']['num_chunks']}")
-print(f"- Processing time: {result_gemini['metadata']['processing_time']:.2f} seconds")
-```
-
-### Basic Usage (with Ollama)
-
-To use a model served by Ollama, simply set `ollama=True` and provide the Ollama model name.
-You can refer to the example script [`examples/ollama_question_answering.py`](examples/ollama_question_answering.py) for a full working example.
-
-```python
-from chain_of_agents import ChainOfAgents
-
-# Initialize Chain of Agents for Ollama
-# Ensure your Ollama server is running and the model is available
-chain = ChainOfAgents(
-    model_name="deepseek-r1:1.5b",  # Or another available Ollama model
-    ollama=True,                    # Set this flag to True
-    show_worker_output=True         # Set to True to see worker agent outputs
-)
-
-# Example: Process a document with a query
-long_text = "Your very long document text goes here..."
-query = "What is the AI effect and why does it happen?"
-
-result = chain.query(query=query, text=long_text)
-print("Final Answer:")
-print(result)
-```
-
-You can run the example script directly:
-```bash
-python examples/ollama_question_answering.py
-```
-query = "What are the main points discussed in the document?"
-
-result_ollama = coa_ollama.query(text=long_text, query=query)
-
-print("Final Answer (Ollama):")
-print(result_ollama["answer"])
-
-print("\nMetadata (Ollama):")
-print(f"- Chunks created: {result_ollama['metadata']['num_chunks']}")
-print(f"- Processing time: {result_ollama['metadata']['processing_time']:.2f} seconds")
+# Summarization
+result_summary = coa.summarize(text=long_text)
+print(result_summary["answer"])
 ```
 
 ### Question Answering
@@ -211,13 +191,13 @@ print(f"- Processing time: {result_ollama['metadata']['processing_time']:.2f} se
 Both Gemini and Ollama instances can be used for question answering via the `.query()` method.
 
 ```python
-# Using the initialized coa_gemini or coa_ollama from above...
+# Using the initialized coa from above...
 
 long_text = "..." # Your long text
 question = "..." # Your question
 
 # Process the query (example with Gemini instance)
-result = coa_gemini.query(text=long_text, query=question)
+result = coa.query(text=long_text, query=question)
 
 # Get the answer
 print(result["answer"])
@@ -228,12 +208,12 @@ print(result["answer"])
 Both Gemini and Ollama instances can be used for summarization via the `.summarize()` method.
 
 ```python
-# Using the initialized coa_gemini or coa_ollama from above...
+# Using the initialized coa from above...
 
 long_text = "..." # Your long text
 
 # Generate a summary (example with Ollama instance)
-result = coa_ollama.summarize(text=long_text)
+result = coa.summarize(text=long_text)
 
 # Get the summary
 print(result["answer"])
