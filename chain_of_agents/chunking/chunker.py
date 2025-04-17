@@ -158,7 +158,7 @@ class Chunker:
         query: str,
         instruction_prompt: str,
         embedding_provider: BaseEmbeddingProvider,
-        llm_provider: BaseLLMProvider = None,
+        llm_provider: BaseLLMProvider,
         similarity_threshold: float = 0.7,
         verbose: bool = False
     ) -> List[str]:
@@ -169,15 +169,19 @@ class Chunker:
             text: The source text to chunk.
             query: The query or task description.
             instruction_prompt: The instruction prompt for the worker agent.
-            model: The language model instance (must implement embed_content and count_tokens).
+            embedding_provider: The embedding provider instance for generating embeddings.
+            llm_provider: The LLM provider instance for counting tokens.
             similarity_threshold: The minimum cosine similarity score for a chunk to be considered relevant.
             verbose: Whether to print detailed logging during filtering.
 
         Returns:
             A list of relevant text chunks, preserving original order.
         """
+        # Ensure we have an LLM provider for token counting
+        if llm_provider is None:
+            raise ValueError("llm_provider is required for create_and_filter_chunks")
         # 1. Create initial chunks based on token budget
-        token_counter = llm_provider.count_tokens if llm_provider else embedding_provider.count_tokens
+        token_counter = llm_provider.count_tokens
         initial_chunks = self.create_chunks(
             text=text,
             query=query,

@@ -101,11 +101,12 @@ class ChainOfAgents:
             self._log(f"Filtering chunks with similarity threshold: {self.similarity_threshold}")
             chunks = self.chunker.create_and_filter_chunks(
                 text=text,
-                query=query, # Query must exist for query-based filtering
+                query=query,  # Query must exist for query-based filtering
                 instruction_prompt=worker_instruction,
-                embedding_provider=provider_for_embedding, # Use embedding provider if provided
+                embedding_provider=provider_for_embedding,  # Use embedding provider if provided
+                llm_provider=self.llm_provider,  # Use LLM provider for token counting
                 similarity_threshold=self.similarity_threshold,
-                verbose=self.verbose # Pass verbose flag for detailed logging
+                verbose=self.verbose  # Pass verbose flag for detailed logging
             )
         else:
             chunks = self.chunker.create_chunks(
