@@ -103,7 +103,7 @@ class ChainOfAgents:
                 text=text,
                 query=query, # Query must exist for query-based filtering
                 instruction_prompt=worker_instruction,
-                model=provider_for_embedding, # Use embedding provider if provided
+                embedding_provider=provider_for_embedding, # Use embedding provider if provided
                 similarity_threshold=self.similarity_threshold,
                 verbose=self.verbose # Pass verbose flag for detailed logging
             )
