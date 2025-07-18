@@ -9,7 +9,7 @@ class WorkerAgent:
     Worker agent that processes chunks of text and generates communication units.
     """
     
-    def __init__(self, llm_provider=None, model=None):
+    def __init__(self, llm_provider=None, model=None, enable_thinking: bool = False):
         """
         Initialize the worker agent.
         Args:
@@ -20,6 +20,9 @@ class WorkerAgent:
             print("[DEPRECATION WARNING] Use 'llm_provider' instead of 'model' for WorkerAgent.")
             llm_provider = model
         self.llm_provider = llm_provider
+        # Configure provider-level thinking flag if supported
+        if hasattr(self.llm_provider, "enable_thinking"):
+            self.llm_provider.enable_thinking = enable_thinking
         if not hasattr(self.llm_provider, 'generate') or not callable(self.llm_provider.generate):
             raise TypeError(f"llm_provider must implement a callable 'generate' method. Got: {type(self.llm_provider).__name__}")
     

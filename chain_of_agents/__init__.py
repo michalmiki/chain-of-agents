@@ -18,9 +18,18 @@ class ChainOfAgents:
     
     def __init__(
         self,
+        # core providers
         llm_provider=None,
         embedding_provider=None,
+        # optional separate providers per agent
+        worker_llm_provider=None,
+        manager_llm_provider=None,
         token_budget: int = 12000,
+        # per-agent thinking controls
+        worker_thinking: bool = False,
+        manager_thinking: bool = False,
+        # fallback global thinking flag
+        enable_thinking: bool = False,
         verbose: bool = False,
         show_worker_output: bool = False,
         use_embedding_filter: bool = False,
@@ -32,6 +41,7 @@ class ChainOfAgents:
     ):
         """
         Initialize the Chain of Agents with explicit LLM and embedding providers.
+        enable_thinking: If True and the underlying LLM provider supports it, request chain-of-thought from worker and manager agents.
         Args:
             llm_provider: Object implementing BaseLLMProvider for generation.
             embedding_provider: Object implementing BaseEmbeddingProvider for embeddings.
@@ -48,12 +58,24 @@ class ChainOfAgents:
         self.llm_provider = llm_provider
         self.embedding_provider = embedding_provider
         self.chunker = Chunker(token_budget=token_budget)
-        self.worker_agent = WorkerAgent(model=self.llm_provider)
-        self.manager_agent = ManagerAgent(model=self.llm_provider)
+
+        # Resolve providers per agent
+        worker_provider = worker_llm_provider or llm_provider
+        manager_provider = manager_llm_provider or llm_provider
+
+        self.worker_agent = WorkerAgent(
+            llm_provider=worker_provider,
+            enable_thinking=(worker_thinking or enable_thinking)
+        )
+        self.manager_agent = ManagerAgent(
+            llm_provider=manager_provider,
+            enable_thinking=(manager_thinking or enable_thinking)
+        )
         self.verbose = verbose
         self.show_worker_output = show_worker_output
         self.use_embedding_filter = use_embedding_filter
         self.similarity_threshold = similarity_threshold
+        self.enable_thinking = enable_thinking
         # Check if filtering is requested but provider doesn't support embedding
         provider_for_embedding = self.embedding_provider or self.llm_provider
         if self.use_embedding_filter and not hasattr(provider_for_embedding, 'embed'):

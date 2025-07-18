@@ -12,7 +12,7 @@ except ImportError:
     OLLAMA_AVAILABLE = False
 
 class OllamaLLMProvider(BaseLLMProvider):
-    def __init__(self, model_name: str = "deepseek-llm:7b-instruct", base_url: str = "http://localhost:11434"):
+    def __init__(self, model_name: str = "deepseek-llm:7b-instruct", base_url: str = "http://localhost:11434", enable_thinking: bool = False, context_window: int = 32768):
         """
         Ollama LLM provider. Pass model_name and base_url directly. No API key required.
         """
@@ -22,8 +22,14 @@ class OllamaLLMProvider(BaseLLMProvider):
             )
         self.model_name = model_name
         self.base_url = base_url
+        # Whether to request the model's chain-of-thought via Ollama's `think` flag
+        self.enable_thinking = enable_thinking
+        # Context window to send to Ollama (num_ctx option)
+        self.context_window = context_window
+        # Store the last raw "thinking" text (if any) for debugging purposes
+        self.last_thinking: str = ""
 
-    def generate(self, prompt: str, temperature: float = 0.7, max_tokens: int = 1024) -> str:
+    def generate(self, prompt: str, temperature: float = 0.2, max_tokens: int = 8192) -> str:
         try:
             messages = [
                 {
@@ -33,11 +39,38 @@ class OllamaLLMProvider(BaseLLMProvider):
             ]
             options = {
                 'temperature': temperature,
-                'num_predict': max_tokens
+                'num_predict': max_tokens,
+                'num_ctx': self.context_window,
             }
-            kwargs = {'model': self.model_name, 'messages': messages, 'options': options}
-            response: ChatResponse = chat(**kwargs)
-            return response.message.content
+            kwargs = {
+                'model': self.model_name,
+                'messages': messages,
+                'options': options,
+                'think': self.enable_thinking,
+            }
+            response = chat(**kwargs)
+
+            # Ollama >= 0.2.0 returns a dict-like object; earlier versions return ChatResponse
+            content = ""
+            thinking_text = ""
+            try:
+                # Newer: dict style
+                if isinstance(response, dict):
+                    message = response.get("message", {})
+                    content = message.get("content", "")
+                    thinking_text = message.get("thinking", "")
+                else:
+                    # Fallback ChatResponse
+                    content = response.message.content
+                    thinking_text = getattr(response.message, "thinking", "")
+            except Exception as parse_err:
+                print(f"Warning: could not parse Ollama response: {parse_err}")
+                content = str(response)
+
+            # Persist thinking for external inspection if enabled
+            if self.enable_thinking:
+                self.last_thinking = thinking_text
+            return content
         except Exception as e:
             print(f"Error generating content with Ollama: {e}")
             return ""
