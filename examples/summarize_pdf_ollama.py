@@ -99,6 +99,14 @@ def main():
     print(result["answer"])
     print("\n==== Metadata ====")
     print(f"Number of chunks: {result['metadata']['num_chunks']}")
+
+    # Optional: show chain-of-thought if enabled
+    if args.worker_thinking and getattr(worker_provider, "last_thinking", ""):
+        print("\n==== Worker (last) chain-of-thought ====")
+        print(worker_provider.last_thinking)
+    if args.manager_thinking and getattr(manager_provider, "last_thinking", ""):
+        print("\n==== Manager chain-of-thought ====")
+        print(manager_provider.last_thinking)
     print(f"Processing time: {result['metadata']['processing_time']:.2f} seconds")
 
 
