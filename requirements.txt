@@ -1,2 +1,2 @@
-# Install the package with all provider extras for local development and examples.
-.[all]
+# Install this project in editable mode with every optional provider dependency.
+-e .[all]
