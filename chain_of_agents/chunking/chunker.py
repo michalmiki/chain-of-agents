@@ -3,6 +3,7 @@ Chunking module for the Chain of Agents implementation.
 Splits text based on character length.
 """
 import re
+import warnings
 import numpy as np
 from typing import List, Tuple, Optional
 from ..providers.base_embedding_provider import BaseEmbeddingProvider
@@ -40,29 +41,25 @@ class Chunker:
 
     def _cosine_similarity(self, vec1, vec2) -> float:
         """Calculate cosine similarity between two vectors."""
-        # --- Debugging Start ---
-        print(f"DEBUG: _cosine_similarity received vec1 type: {type(vec1)}")
-        print(f"DEBUG: _cosine_similarity received vec2 type: {type(vec2)}")
-        if not isinstance(vec1, (list, np.ndarray)):
-            print(f"ERROR: vec1 is not a list or ndarray! Value: {vec1}")
-            return 0.0 # Cannot calculate similarity
-        if not isinstance(vec2, (list, np.ndarray)):
-            print(f"ERROR: vec2 is not a list or ndarray! Value: {vec2}")
-            return 0.0 # Cannot calculate similarity
-        # --- Debugging End ---
+        if not isinstance(vec1, (list, np.ndarray)) or not isinstance(vec2, (list, np.ndarray)):
+            return 0.0
 
-        vec1 = np.array(vec1)
-        vec2 = np.array(vec2)
+        vec1 = np.array(vec1, dtype=float)
+        vec2 = np.array(vec2, dtype=float)
+
         if vec1.ndim == 0 or vec2.ndim == 0 or vec1.size == 0 or vec2.size == 0:
-             print(f"Warning: One or both embedding vectors are empty or scalar. vec1: {vec1}, vec2: {vec2}")
-             return 0.0
+            return 0.0
+
         if vec1.shape != vec2.shape:
-             # This might happen if embedding fails for one or returns different dimensions
-             print(f"Warning: Embedding vectors have different shapes: {vec1.shape} vs {vec2.shape}")
-             return 0.0
-        if np.linalg.norm(vec1) == 0 or np.linalg.norm(vec2) == 0:
-            return 0.0 # Avoid division by zero
-        return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+            return 0.0
+
+        vec1_norm = np.linalg.norm(vec1)
+        vec2_norm = np.linalg.norm(vec2)
+
+        if vec1_norm == 0 or vec2_norm == 0:
+            return 0.0
+
+        return float(np.dot(vec1, vec2) / (vec1_norm * vec2_norm))
 
     def create_chunks(
         self,
@@ -196,10 +193,18 @@ class Chunker:
         try:
             query_embedding = embedding_provider.embed(query)
             if not query_embedding:
-                print("Warning: Failed to embed query. Skipping filtering.")
+                warnings.warn(
+                    "Failed to embed query. Skipping chunk filtering.",
+                    RuntimeWarning,
+                    stacklevel=2
+                )
                 return initial_chunks
         except Exception as e:
-            print(f"Error embedding query: {e}. Skipping filtering.")
+            warnings.warn(
+                f"Error embedding query: {e}. Skipping chunk filtering.",
+                RuntimeWarning,
+                stacklevel=2
+            )
             return initial_chunks
 
 
@@ -210,7 +215,11 @@ class Chunker:
             try:
                 chunk_embedding = embedding_provider.embed(chunk)
                 if not chunk_embedding:
-                    print(f"Warning: Failed to embed chunk. Skipping this chunk:\n{chunk[:100]}...")
+                    warnings.warn(
+                        "Failed to embed chunk during filtering. Skipping chunk.",
+                        RuntimeWarning,
+                        stacklevel=2
+                    )
                     continue # Skip chunk if embedding fails
 
                 similarity = self._cosine_similarity(query_embedding, chunk_embedding)
@@ -223,10 +232,20 @@ class Chunker:
                     if verbose: print(f"  Chunk {i+1}/{len(initial_chunks)}: Similarity = {similarity:.4f} [FILTERED]")
 
             except Exception as e:
-                 print(f"Error processing chunk {i+1} embedding or similarity: {e}. Skipping chunk:\n{chunk[:100]}...")
-                 if verbose: print(f"  Chunk {i+1}/{len(initial_chunks)}: [ERROR DURING PROCESSING]")
-                 continue # Skip chunk on error
+                warnings.warn(
+                    f"Error processing chunk {i+1} during filtering: {e}. Skipping chunk.",
+                    RuntimeWarning,
+                    stacklevel=2
+                )
+                if verbose:
+                    print(f"  Chunk {i+1}/{len(initial_chunks)}: [ERROR DURING PROCESSING]")
+                continue # Skip chunk on error
 
         if verbose: print("--- End Chunk Filtering ---")
-        print(f"Filtered chunks: Kept {len(relevant_chunks)} out of {len(initial_chunks)} based on similarity threshold {similarity_threshold}")
+        if verbose:
+            print(
+                "Filtered chunks: Kept "
+                f"{len(relevant_chunks)} out of {len(initial_chunks)} "
+                f"based on similarity threshold {similarity_threshold}"
+            )
         return relevant_chunks
