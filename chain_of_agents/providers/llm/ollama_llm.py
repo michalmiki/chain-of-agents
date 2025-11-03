@@ -6,6 +6,11 @@ from ..base_llm_provider import BaseLLMProvider
 import os
 
 try:
+    import tiktoken
+except ImportError:  # pragma: no cover - dependency declared but guard for robustness
+    tiktoken = None
+
+try:
     from ollama import chat, ChatResponse
     OLLAMA_AVAILABLE = True
 except ImportError:
@@ -28,6 +33,15 @@ class OllamaLLMProvider(BaseLLMProvider):
         self.context_window = context_window
         # Store the last raw "thinking" text (if any) for debugging purposes
         self.last_thinking: str = ""
+        self.tokenizer = None
+        if tiktoken is not None:
+            try:
+                self.tokenizer = tiktoken.encoding_for_model(self.model_name)
+            except Exception:
+                try:
+                    self.tokenizer = tiktoken.get_encoding("cl100k_base")
+                except Exception:
+                    self.tokenizer = None
 
     def generate(self, prompt: str, temperature: float = 0.2, max_tokens: int = 8192) -> str:
         try:
@@ -76,4 +90,6 @@ class OllamaLLMProvider(BaseLLMProvider):
             return ""
 
     def count_tokens(self, text: str) -> int:
-        return len(text) // 4
+        if self.tokenizer is not None:
+            return len(self.tokenizer.encode(text))
+        return len(text.split()) if text else 0

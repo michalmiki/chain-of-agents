@@ -1,12 +1,22 @@
 """
 Chunking module for the Chain of Agents implementation.
-Splits text based on character length.
+Splits text based on accurate token counts.
 """
+import logging
 import re
+from typing import List
+
 import numpy as np
-from typing import List, Tuple, Optional
+
+try:
+    import tiktoken
+except ImportError:  # pragma: no cover - dependency declared but guard for robustness
+    tiktoken = None
 from ..providers.base_embedding_provider import BaseEmbeddingProvider
 from ..providers.base_llm_provider import BaseLLMProvider
+
+
+logger = logging.getLogger(__name__)
 
 
 class Chunker:
@@ -25,7 +35,18 @@ class Chunker:
         """
         self.token_budget = token_budget
         
-    def _get_token_length(self, text: str, token_counter) -> int:
+    def _resolve_tokenizer(self, tokenizer=None):
+        """Return a tokenizer compatible with the provided model if possible."""
+        if tokenizer and hasattr(tokenizer, "encode") and hasattr(tokenizer, "decode"):
+            return tokenizer
+        if tiktoken is None:
+            return None
+        try:
+            return tiktoken.get_encoding("cl100k_base")
+        except Exception:  # pragma: no cover - defensive, should not happen with valid install
+            return None
+
+    def _get_token_length(self, text: str, token_counter, tokenizer=None) -> int:
         """
         Get the token length of a text.
         
@@ -36,32 +57,32 @@ class Chunker:
         Returns:
             The number of tokens.
         """
+        if tokenizer is not None:
+            try:
+                return len(tokenizer.encode(text))
+            except Exception:  # pragma: no cover - fallback to provider counter
+                logger.debug("Tokenizer encode failed; falling back to provided token counter.")
         return token_counter(text)
 
     def _cosine_similarity(self, vec1, vec2) -> float:
         """Calculate cosine similarity between two vectors."""
-        # --- Debugging Start ---
-        print(f"DEBUG: _cosine_similarity received vec1 type: {type(vec1)}")
-        print(f"DEBUG: _cosine_similarity received vec2 type: {type(vec2)}")
-        if not isinstance(vec1, (list, np.ndarray)):
-            print(f"ERROR: vec1 is not a list or ndarray! Value: {vec1}")
-            return 0.0 # Cannot calculate similarity
-        if not isinstance(vec2, (list, np.ndarray)):
-            print(f"ERROR: vec2 is not a list or ndarray! Value: {vec2}")
-            return 0.0 # Cannot calculate similarity
-        # --- Debugging End ---
+        if vec1 is None or vec2 is None:
+            logger.debug("Received None embedding when computing cosine similarity.")
+            return 0.0
+        if not isinstance(vec1, (list, np.ndarray)) or not isinstance(vec2, (list, np.ndarray)):
+            logger.debug("Cosine similarity requires list or ndarray embeddings. Skipping computation.")
+            return 0.0
 
         vec1 = np.array(vec1)
         vec2 = np.array(vec2)
         if vec1.ndim == 0 or vec2.ndim == 0 or vec1.size == 0 or vec2.size == 0:
-             print(f"Warning: One or both embedding vectors are empty or scalar. vec1: {vec1}, vec2: {vec2}")
-             return 0.0
+            logger.debug("Encountered empty embedding vector while computing cosine similarity.")
+            return 0.0
         if vec1.shape != vec2.shape:
-             # This might happen if embedding fails for one or returns different dimensions
-             print(f"Warning: Embedding vectors have different shapes: {vec1.shape} vs {vec2.shape}")
-             return 0.0
+            logger.debug("Embedding vectors have mismatched shapes; skipping cosine similarity computation.")
+            return 0.0
         if np.linalg.norm(vec1) == 0 or np.linalg.norm(vec2) == 0:
-            return 0.0 # Avoid division by zero
+            return 0.0  # Avoid division by zero
         return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
     def create_chunks(
@@ -69,7 +90,8 @@ class Chunker:
         text: str,
         query: str, 
         instruction_prompt: str, 
-        token_counter
+        token_counter,
+        tokenizer=None,
     ) -> List[str]:
         """
         Create chunks from text based on token budget.
@@ -86,9 +108,11 @@ class Chunker:
         Returns:
             A list of text chunks.
         """
+        tokenizer = self._resolve_tokenizer(tokenizer)
+
         # Calculate available budget for each chunk
-        query_tokens = self._get_token_length(query, token_counter)
-        instruction_tokens = self._get_token_length(instruction_prompt, token_counter)
+        query_tokens = self._get_token_length(query, token_counter, tokenizer)
+        instruction_tokens = self._get_token_length(instruction_prompt, token_counter, tokenizer)
         
         # Reserve some space for the communication unit from the previous worker
         # Assuming the communication unit will be roughly 20% of the chunk size
@@ -103,52 +127,55 @@ class Chunker:
                 f"query ({query_tokens}) and instruction ({instruction_tokens}) tokens."
             )
 
-        # Estimate character budget (assuming ~4 chars/token)
-        # This is a rough approximation. Consider making this configurable.
-        char_budget = chunk_budget * 4 
-
         # Clean the text slightly
         text = re.sub(r'\n+', '\n', text) # Keep single newlines
         text = re.sub(r'[ \t]+', ' ', text) # Consolidate whitespace
 
         chunks = []
-        start_index = 0
-        text_length = len(text)
+        if tokenizer is not None:
+            token_ids = tokenizer.encode(text)
+            start_index = 0
+            while start_index < len(token_ids):
+                end_index = min(start_index + chunk_budget, len(token_ids))
+                chunk_tokens = token_ids[start_index:end_index]
+                chunk_text = tokenizer.decode(chunk_tokens).strip()
+                if chunk_text:
+                    chunks.append(chunk_text)
+                start_index = end_index
+        else:
+            # Fallback to character-based chunking if tokenizer is unavailable
+            char_budget = chunk_budget * 4
+            start_index = 0
+            text_length = len(text)
 
-        while start_index < text_length:
-            # Determine the end index for the chunk
-            end_index = min(start_index + char_budget, text_length)
+            while start_index < text_length:
+                end_index = min(start_index + char_budget, text_length)
+                if end_index < text_length:
+                    break_point = -1
+                    newline_pos = text.rfind('\n', max(start_index, end_index - 50), end_index)
+                    space_pos = text.rfind(' ', max(start_index, end_index - 50), end_index)
 
-            # Try to find a natural break point (newline or space) near the end_index
-            # Search backwards from end_index
-            if end_index < text_length: # Don't adjust if it's the very end
-                break_point = -1
-                # Look for newline first, then space, within a reasonable window (e.g., 50 chars)
-                newline_pos = text.rfind('\n', max(start_index, end_index - 50), end_index)
-                space_pos = text.rfind(' ', max(start_index, end_index - 50), end_index)
+                    if newline_pos > start_index:
+                        break_point = newline_pos + 1
+                    elif space_pos > start_index:
+                        break_point = space_pos + 1
 
-                if newline_pos > start_index:
-                    break_point = newline_pos + 1 # Include the newline in the previous chunk usually feels better
-                elif space_pos > start_index:
-                    break_point = space_pos + 1 # Split after the space
+                    if break_point != -1:
+                        end_index = break_point
 
-                # If a break point is found, adjust end_index
-                if break_point != -1:
-                    end_index = break_point
-                # If no natural break found nearby, just cut at char_budget
-                # (This case is handled by the initial end_index calculation)
-
-            # Extract the chunk
-            chunk = text[start_index:end_index].strip()
-            if chunk: # Avoid adding empty chunks
-                chunks.append(chunk)
-
-            # Move to the next chunk's start
-            start_index = end_index
-            # Skip potential leading whitespace for the next chunk
-            while start_index < text_length and text[start_index].isspace():
-                start_index += 1
-
+                chunk = text[start_index:end_index].strip()
+                if chunk:
+                    while self._get_token_length(chunk, token_counter) > chunk_budget and len(chunk) > 1:
+                        trim_point = max(chunk.rfind('\n', 0, len(chunk) - 1), chunk.rfind(' ', 0, len(chunk) - 1))
+                        if trim_point == -1:
+                            chunk = chunk[:max(1, len(chunk) - 1)].strip()
+                        else:
+                            chunk = chunk[:trim_point].strip()
+                    if chunk and self._get_token_length(chunk, token_counter) <= chunk_budget:
+                        chunks.append(chunk)
+                start_index = end_index
+                while start_index < text_length and text[start_index].isspace():
+                    start_index += 1
 
         return chunks
 
@@ -182,11 +209,13 @@ class Chunker:
             raise ValueError("llm_provider is required for create_and_filter_chunks")
         # 1. Create initial chunks based on token budget
         token_counter = llm_provider.count_tokens
+        tokenizer = getattr(llm_provider, "tokenizer", None)
         initial_chunks = self.create_chunks(
             text=text,
             query=query,
             instruction_prompt=instruction_prompt,
-            token_counter=token_counter
+            token_counter=token_counter,
+            tokenizer=tokenizer,
         )
 
         if not initial_chunks:
@@ -196,37 +225,66 @@ class Chunker:
         try:
             query_embedding = embedding_provider.embed(query)
             if not query_embedding:
-                print("Warning: Failed to embed query. Skipping filtering.")
+                logger.warning("Failed to embed query. Skipping similarity filtering.")
                 return initial_chunks
         except Exception as e:
-            print(f"Error embedding query: {e}. Skipping filtering.")
+            logger.warning("Error embedding query: %s. Skipping similarity filtering.", e)
             return initial_chunks
 
 
         # 3. Embed and filter chunks
         relevant_chunks = []
-        if verbose: print("\n--- Chunk Filtering Details ---")
+        verbose_log = logger.info if verbose else logger.debug
+        if verbose:
+            verbose_log("--- Chunk Filtering Details ---")
         for i, chunk in enumerate(initial_chunks):
             try:
                 chunk_embedding = embedding_provider.embed(chunk)
                 if not chunk_embedding:
-                    print(f"Warning: Failed to embed chunk. Skipping this chunk:\n{chunk[:100]}...")
+                    logger.debug("Failed to embed chunk %s; skipping.", i + 1)
                     continue # Skip chunk if embedding fails
 
                 similarity = self._cosine_similarity(query_embedding, chunk_embedding)
 
                 # 4. Keep chunk if similarity is above threshold
                 if similarity >= similarity_threshold:
-                    if verbose: print(f"  Chunk {i+1}/{len(initial_chunks)}: Similarity = {similarity:.4f} [KEPT]")
+                    if verbose:
+                        verbose_log(
+                            "  Chunk %s/%s: Similarity = %.4f [KEPT]",
+                            i + 1,
+                            len(initial_chunks),
+                            similarity,
+                        )
                     relevant_chunks.append(chunk)
                 else:
-                    if verbose: print(f"  Chunk {i+1}/{len(initial_chunks)}: Similarity = {similarity:.4f} [FILTERED]")
+                    if verbose:
+                        verbose_log(
+                            "  Chunk %s/%s: Similarity = %.4f [FILTERED]",
+                            i + 1,
+                            len(initial_chunks),
+                            similarity,
+                        )
 
             except Exception as e:
-                 print(f"Error processing chunk {i+1} embedding or similarity: {e}. Skipping chunk:\n{chunk[:100]}...")
-                 if verbose: print(f"  Chunk {i+1}/{len(initial_chunks)}: [ERROR DURING PROCESSING]")
-                 continue # Skip chunk on error
+                logger.debug(
+                    "Error processing chunk %s embedding or similarity: %s. Skipping chunk.",
+                    i + 1,
+                    e,
+                )
+                if verbose:
+                    verbose_log(
+                        "  Chunk %s/%s: [ERROR DURING PROCESSING]",
+                        i + 1,
+                        len(initial_chunks),
+                    )
+                continue # Skip chunk on error
 
-        if verbose: print("--- End Chunk Filtering ---")
-        print(f"Filtered chunks: Kept {len(relevant_chunks)} out of {len(initial_chunks)} based on similarity threshold {similarity_threshold}")
+        if verbose:
+            verbose_log("--- End Chunk Filtering ---")
+        logger.info(
+            "Filtered chunks: Kept %s out of %s based on similarity threshold %.2f",
+            len(relevant_chunks),
+            len(initial_chunks),
+            similarity_threshold,
+        )
         return relevant_chunks

@@ -135,7 +135,8 @@ class ChainOfAgents:
                 text=text,
                 query=query or "",
                 instruction_prompt=worker_instruction,
-                token_counter=self.llm_provider.count_tokens
+                token_counter=self.llm_provider.count_tokens,
+                tokenizer=getattr(self.llm_provider, "tokenizer", None),
             )
         
         if self.use_embedding_filter and not is_query_based:
