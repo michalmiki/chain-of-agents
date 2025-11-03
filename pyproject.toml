@@ -20,6 +20,8 @@ classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
@@ -35,26 +37,26 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-"gemini" = [
-  "google-genai>=1.0.0",
-]
-"openai" = [
+openai = [
   "openai>=1.0.0",
 ]
-"ollama" = [
+gemini = [
+  "google-genai>=0.6.0",
+]
+sentence-transformers = [
+  "sentence-transformers>=2.6.1",
+]
+ollama = [
   "ollama>=0.1.5",
 ]
-"sentence-transformers" = [
-  "sentence-transformers>=3.0.0",
-]
-"markitdown" = [
+markitdown = [
   "markitdown>=0.1.1",
 ]
-"all" = [
-  "google-genai>=1.0.0",
+all = [
   "openai>=1.0.0",
+  "google-genai>=0.6.0",
+  "sentence-transformers>=2.6.1",
   "ollama>=0.1.5",
-  "sentence-transformers>=3.0.0",
   "markitdown>=0.1.1",
 ]
 
@@ -65,5 +67,5 @@ Issues = "https://github.com/qkianalytics/chain-of-agents/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["chain_of_agents"]
+include = ["chain_of_agents*"]
 exclude = ["examples", "tests"]
