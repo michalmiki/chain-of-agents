@@ -1,7 +1,7 @@
 """
 Chain of Agents (CoA) implementation.
 """
-from typing import Optional, List, Dict, Any, Callable
+from typing import Optional, Dict, Any
 import time
 
 from chain_of_agents.chunking.chunker import Chunker
@@ -41,6 +41,9 @@ class ChainOfAgents:
     ):
         """
         Initialize the Chain of Agents with explicit LLM and embedding providers.
+        At least one generation-capable provider (global or per-agent) must be supplied so worker and
+        manager agents can produce text. Token counting automatically falls back to whichever provided
+        LLM supports it, ensuring chunking works even when only per-agent providers are configured.
         enable_thinking: If True and the underlying LLM provider supports it, request chain-of-thought from worker and manager agents.
         Args:
             llm_provider: Object implementing BaseLLMProvider for generation.
@@ -59,9 +62,72 @@ class ChainOfAgents:
         self.embedding_provider = embedding_provider
         self.chunker = Chunker(token_budget=token_budget)
 
-        # Resolve providers per agent
-        worker_provider = worker_llm_provider or llm_provider
-        manager_provider = manager_llm_provider or llm_provider
+        provided_providers = {
+            "llm_provider": llm_provider,
+            "worker_llm_provider": worker_llm_provider,
+            "manager_llm_provider": manager_llm_provider,
+        }
+
+        def _supports_generation(provider) -> bool:
+            return (
+                provider is not None
+                and hasattr(provider, "generate")
+                and callable(getattr(provider, "generate"))
+            )
+
+        if not any(_supports_generation(provider) for provider in provided_providers.values()):
+            supplied = [name for name, provider in provided_providers.items() if provider is not None]
+            if supplied:
+                raise ValueError(
+                    "ChainOfAgents requires at least one generation-capable provider (with a callable 'generate' method). "
+                    "The following providers were supplied but do not appear to support generation: "
+                    + ", ".join(supplied)
+                )
+            raise ValueError(
+                "ChainOfAgents requires at least one generation-capable provider (provide 'llm_provider', "
+                "'worker_llm_provider', or 'manager_llm_provider')."
+            )
+
+        def _select_generation_provider(*candidates):
+            for candidate in candidates:
+                if _supports_generation(candidate):
+                    return candidate
+            return None
+
+        # Resolve providers per agent, falling back to any available generation-capable provider.
+        worker_provider = _select_generation_provider(worker_llm_provider, llm_provider, manager_llm_provider)
+        manager_provider = _select_generation_provider(manager_llm_provider, llm_provider, worker_llm_provider)
+
+        if worker_provider is None:
+            raise ValueError(
+                "Worker agents require a generation-capable provider. Provide 'worker_llm_provider' or a global 'llm_provider'."
+            )
+        if manager_provider is None:
+            raise ValueError(
+                "Manager agent requires a generation-capable provider. Provide 'manager_llm_provider' or a global 'llm_provider'."
+            )
+
+        def _supports_token_count(provider) -> bool:
+            return (
+                provider is not None
+                and hasattr(provider, "count_tokens")
+                and callable(getattr(provider, "count_tokens"))
+            )
+
+        self._token_counter_provider = next(
+            (
+                provider
+                for provider in (llm_provider, worker_provider, manager_provider)
+                if _supports_token_count(provider)
+            ),
+            None,
+        )
+
+        if self._token_counter_provider is None:
+            raise ValueError(
+                "ChainOfAgents requires a provider capable of counting tokens. Ensure the supplied LLM provider implements 'count_tokens'."
+            )
+        self._token_counter = self._token_counter_provider.count_tokens
 
         self.worker_agent = WorkerAgent(
             llm_provider=worker_provider,
@@ -77,7 +143,7 @@ class ChainOfAgents:
         self.similarity_threshold = similarity_threshold
         self.enable_thinking = enable_thinking
         # Check if filtering is requested but provider doesn't support embedding
-        provider_for_embedding = self.embedding_provider or self.llm_provider
+        provider_for_embedding = self.embedding_provider or self.llm_provider or self._token_counter_provider
         if self.use_embedding_filter and not hasattr(provider_for_embedding, 'embed'):
             print(f"Warning: 'use_embedding_filter' is True, but the selected embedding provider ({type(provider_for_embedding).__name__}) does not implement 'embed'. Filtering will be disabled.")
             self.use_embedding_filter = False
@@ -118,7 +184,7 @@ class ChainOfAgents:
         
         # Create chunks (potentially filtering them)
         self._log("Creating chunks...")
-        provider_for_embedding = self.embedding_provider or self.llm_provider
+        provider_for_embedding = self.embedding_provider or self.llm_provider or self._token_counter_provider
         if is_query_based and self.use_embedding_filter:
             self._log(f"Filtering chunks with similarity threshold: {self.similarity_threshold}")
             chunks = self.chunker.create_and_filter_chunks(
@@ -126,7 +192,7 @@ class ChainOfAgents:
                 query=query,  # Query must exist for query-based filtering
                 instruction_prompt=worker_instruction,
                 embedding_provider=provider_for_embedding,  # Use embedding provider if provided
-                llm_provider=self.llm_provider,  # Use LLM provider for token counting
+                llm_provider=self._token_counter_provider,  # Use available provider for token counting
                 similarity_threshold=self.similarity_threshold,
                 verbose=self.verbose  # Pass verbose flag for detailed logging
             )
@@ -135,7 +201,7 @@ class ChainOfAgents:
                 text=text,
                 query=query or "",
                 instruction_prompt=worker_instruction,
-                token_counter=self.llm_provider.count_tokens
+                token_counter=self._token_counter
             )
         
         if self.use_embedding_filter and not is_query_based:
