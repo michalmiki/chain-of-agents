@@ -6,6 +6,11 @@ import os
 from typing import Optional
 
 try:
+    import tiktoken
+except ImportError:  # pragma: no cover - dependency declared but guard for robustness
+    tiktoken = None
+
+try:
     import openai
     OPENAI_AVAILABLE = True
 except ImportError:
@@ -20,6 +25,15 @@ class OpenAILLMProvider(BaseLLMProvider):
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables or as argument.")
         openai.api_key = self.api_key
+        self.tokenizer = None
+        if tiktoken is not None:
+            try:
+                self.tokenizer = tiktoken.encoding_for_model(self.model_name)
+            except Exception:
+                try:
+                    self.tokenizer = tiktoken.get_encoding("cl100k_base")
+                except Exception:
+                    self.tokenizer = None
 
     def generate(self, prompt: str, temperature: float = 0.7, max_tokens: int = 1024) -> str:
         try:
@@ -35,5 +49,7 @@ class OpenAILLMProvider(BaseLLMProvider):
             return ""
 
     def count_tokens(self, text: str) -> int:
-        # Approximate: 4 chars per token for English
-        return len(text) // 4
+        if self.tokenizer is not None:
+            return len(self.tokenizer.encode(text))
+        # Fallback approximation when tokenizer is unavailable
+        return len(text.split()) if text else 0
