@@ -67,3 +67,8 @@ Issues = "https://github.com/qkianalytics/chain-of-agents/issues"
 where = ["."]
 include = ["chain_of_agents"]
 exclude = ["examples", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]

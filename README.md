@@ -165,6 +165,8 @@ llm_provider = OpenAILLMProvider(model_name="gpt-3.5-turbo")
 embedding_provider = OpenAIEmbeddingProvider(model_name="text-embedding-ada-002")
 
 # Initialize Chain of Agents
+# NOTE: Provide at least one generation-capable provider (global or per-agent) so
+#       worker and manager agents can produce outputs.
 coa = ChainOfAgents(
     llm_provider=llm_provider,
     embedding_provider=embedding_provider,
